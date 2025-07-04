@@ -1,52 +1,65 @@
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Dict, Optional
+from enum import Enum
+
+class RouteAlgorithm(Enum):
+    """Algoritmos disponibles para cálculo de rutas"""
+    DIJKSTRA = "dijkstra"
+    FLOYD_WARSHALL = "floyd_warshall"
 
 @dataclass
 class Route:
-    """
-    Representa una ruta entre nodos en el sistema de drones.
-    """
-    path: List[str]  # Lista de IDs de nodos en el camino
-    total_cost: float  # Costo total de la ruta (suma de pesos)
-    energy_required: float  # Energía requerida para completar la ruta
-    recharge_stops: int = 0  # Número de paradas de recarga necesarias
-    frequency: int = 1  # Cuántas veces se ha usado esta ruta
+    """Clase que representa una ruta entre nodos"""
+    path: List[str]  # Lista de IDs de nodos en orden de visita
+    distance: float  # Distancia total
+    energy_required: float  # Energía total requerida
+    algorithm_used: RouteAlgorithm
+    recharge_stops: List[str] = None  # IDs de nodos de recarga
+    metadata: Optional[Dict] = None  # Datos adicionales
 
-    def add_recharge_stop(self):
-        """Incrementa el contador de paradas de recarga."""
-        self.recharge_stops += 1
+    def __post_init__(self):
+        if self.recharge_stops is None:
+            self.recharge_stops = []
+        if self.metadata is None:
+            self.metadata = {}
 
-    def increment_frequency(self):
-        """Incrementa la frecuencia de uso de esta ruta."""
-        self.frequency += 1
-
-    def is_valid(self, max_autonomy: float = 50.0) -> bool:
+    def is_feasible(self, max_autonomy: float = 50.0) -> bool:
         """
-        Verifica si la ruta es válida considerando la autonomía máxima del dron.
+        Verifica si la ruta es factible considerando la autonomía máxima del dron.
+        Devuelve True si la ruta no excede la autonomía o si incluye recargas suficientes.
         """
-        return self.energy_required <= max_autonomy
+        if self.energy_required <= max_autonomy:
+            return True
+        
+        # Verificar que las recargas dividen la ruta en segmentos factibles
+        if not self.recharge_stops:
+            return False
+        
+        # Simular el viaje por segmentos
+        current_energy = max_autonomy
+        previous_node = self.path[0]
+        
+        for node in self.path[1:]:
+            segment_cost = self.metadata.get(f"{previous_node}-{node}", {}).get("energy", 0)
+            current_energy -= segment_cost
+            
+            if current_energy < 0:
+                return False
+            
+            if node in self.recharge_stops:
+                current_energy = max_autonomy  # Recarga completa
+                
+            previous_node = node
+            
+        return True
 
-    def to_dict(self) -> dict:
-        """Convierte el objeto Route a un diccionario para serialización."""
-        return {
-            "path": self.path,
-            "total_cost": self.total_cost,
-            "energy_required": self.energy_required,
-            "recharge_stops": self.recharge_stops,
-            "frequency": self.frequency
-        }
+    def add_recharge_stop(self, node_id: str):
+        """Añade una parada de recarga a la ruta"""
+        if node_id not in self.path:
+            raise ValueError("El nodo de recarga debe estar en la ruta")
+        if node_id not in self.recharge_stops:
+            self.recharge_stops.append(node_id)
 
-    @classmethod
-    def from_dict(cls, data: dict) -> 'Route':
-        """Crea un objeto Route desde un diccionario."""
-        return cls(
-            path=data.get("path", []),
-            total_cost=data.get("total_cost", 0.0),
-            energy_required=data.get("energy_required", 0.0),
-            recharge_stops=data.get("recharge_stops", 0),
-            frequency=data.get("frequency", 1)
-        )
-
-    def __str__(self) -> str:
-        """Representación de la ruta como string (para usar como clave en AVL)."""
-        return "→".join(self.path)
+    def to_string(self) -> str:
+        """Representación de la ruta como string (para visualización)"""
+        return " → ".join(self.path)

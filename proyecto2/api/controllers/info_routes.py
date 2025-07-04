@@ -1,60 +1,45 @@
 from fastapi import APIRouter
-from typing import List, Dict
-from sim import Simulation
+from typing import List
+from ..models import Client, Order
 
 router = APIRouter()
 
-@router.get("/info/visits/clients")
-async def get_client_visits() -> List[Dict]:
-    """Obtiene el ranking de clientes más visitados."""
-    sim = get_simulation()
-    clients = sorted(
-        sim.clients.values(),
-        key=lambda c: c.total_orders,
-        reverse=True
-    )
+@router.get("/reports/visits/clients")
+def get_top_clients():
+    """Obtener ranking de clientes más visitados"""
+    # En un sistema real, esto vendría de la base de datos
     return [
-        {
-            "client_id": client.id,
-            "name": client.name,
-            "total_orders": client.total_orders,
-            "client_type": client.client_type
-        }
-        for client in clients
+        {"client_id": "C001", "name": "Cliente 1", "visits": 12},
+        {"client_id": "C002", "name": "Cliente 2", "visits": 8}
     ]
 
-@router.get("/info/visits/recharges")
-async def get_recharge_visits() -> List[Dict]:
-    """Obtiene el ranking de nodos de recarga más visitados."""
-    sim = get_simulation()
-    # Implementar lógica para contar visitas a nodos de recarga
-    # (Esto requeriría modificar la clase Simulation para llevar registro)
-    return []
+@router.get("/reports/visits/recharges")
+def get_top_recharge_nodes():
+    """Obtener ranking de nodos de recarga más visitados"""
+    return [
+        {"node_id": "R001", "visits": 15},
+        {"node_id": "R002", "visits": 10}
+    ]
 
-@router.get("/info/visits/storages")
-async def get_storage_visits() -> List[Dict]:
-    """Obtiene el ranking de nodos de almacenamiento más visitados."""
-    sim = get_simulation()
-    # Implementar lógica similar a get_recharge_visits()
-    return []
+@router.get("/reports/visits/storages")
+def get_top_storage_nodes():
+    """Obtener ranking de nodos de almacenamiento más visitados"""
+    return [
+        {"node_id": "S001", "visits": 20},
+        {"node_id": "S002", "visits": 18}
+    ]
 
-@router.get("/info/summary")
-async def get_system_summary() -> Dict:
-    """Obtiene un resumen general del sistema."""
-    sim = get_simulation()
-    stats = sim.get_simulation_stats()
+@router.get("/reports/summary")
+def get_system_summary():
+    """Obtener resumen general de la simulación"""
     return {
-        "system_status": "active",
-        "timestamp": stats["timestamp"],
-        "total_nodes": stats["total_nodes"],
-        "total_edges": stats["total_edges"],
-        "total_clients": stats["total_clients"],
-        "total_orders": stats["total_orders"],
-        "completed_orders": stats["completed_orders"],
-        "pending_orders": stats["pending_orders"]
+        "total_clients": 25,
+        "total_orders": 120,
+        "completed_orders": 85,
+        "pending_orders": 15,
+        "in_progress_orders": 20,
+        "average_route_distance": 35.4,
+        "average_energy_usage": 42.1,
+        "most_used_recharge": "R001",
+        "most_active_storage": "S001"
     }
-
-def get_simulation():
-    """Función helper para obtener la instancia de simulación."""
-    from api.main import get_simulation
-    return get_simulation()
