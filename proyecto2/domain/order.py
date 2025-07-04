@@ -1,67 +1,72 @@
 from dataclasses import dataclass
+from enum import Enum, auto
 from datetime import datetime
-from typing import Optional, List
-from enum import Enum
-
+from uuid import uuid4
+from typing import Optional
+from typing import List
 class OrderStatus(Enum):
-    PENDING = "pending"
-    IN_TRANSIT = "in_transit"
-    DELIVERED = "delivered"
-    CANCELLED = "cancelled"
+    """Estados posibles de una orden"""
+    PENDING = auto()
+    IN_PROGRESS = auto()
+    IN_TRANSIT = auto()
+    COMPLETED = auto()
+    CANCELLED = auto()
+    NEEDS_RECHARGE = auto()
 
 @dataclass
 class Order:
-    """
-    Representa una orden de entrega a ser realizada por un dron.
-    """
+    """Clase que representa una orden de entrega"""
     id: str
     client_id: str
-    origin_id: str  # ID del nodo de almacenamiento
-    destination_id: str  # ID del nodo cliente
-    created_at: datetime = datetime.now()
+    origin: str  # ID del nodo de almacenamiento
+    destination: str  # ID del nodo cliente
     status: OrderStatus = OrderStatus.PENDING
+    created_at: datetime = datetime.now()
     priority: int = 1  # 1-5, siendo 5 la mayor prioridad
+    delivery_date: Optional[datetime] = None
+    total_cost: float = 0.0
     route: Optional[List[str]] = None  # Lista de nodos en la ruta
-    energy_cost: Optional[float] = None  # Costo energético estimado
-    completed_at: Optional[datetime] = None
+    energy_required: float = 0.0
+    recharge_stops: List[str] = None  # IDs de nodos de recarga usados
 
-    def complete(self):
-        """Marca la orden como completada."""
-        self.status = OrderStatus.DELIVERED
-        self.completed_at = datetime.now()
+    def __post_init__(self):
+        if self.recharge_stops is None:
+            self.recharge_stops = []
 
-    def cancel(self):
-        """Cancela la orden si está pendiente."""
-        if self.status == OrderStatus.PENDING:
-            self.status = OrderStatus.CANCELLED
-
-    def to_dict(self) -> dict:
-        """Convierte el objeto Order a un diccionario para serialización."""
-        return {
-            "id": self.id,
-            "client_id": self.client_id,
-            "origin_id": self.origin_id,
-            "destination_id": self.destination_id,
-            "created_at": self.created_at.isoformat(),
-            "status": self.status.value,
-            "priority": self.priority,
-            "route": self.route,
-            "energy_cost": self.energy_cost,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None
+    def update_status(self, new_status: OrderStatus):
+        """Actualiza el estado de la orden con validaciones"""
+        valid_transitions = {
+            OrderStatus.PENDING: [OrderStatus.IN_PROGRESS, OrderStatus.CANCELLED],
+            OrderStatus.IN_PROGRESS: [OrderStatus.IN_TRANSIT, OrderStatus.CANCELLED],
+            OrderStatus.IN_TRANSIT: [OrderStatus.COMPLETED, OrderStatus.NEEDS_RECHARGE],
+            OrderStatus.NEEDS_RECHARGE: [OrderStatus.IN_TRANSIT, OrderStatus.CANCELLED]
         }
+        
+        if new_status not in valid_transitions.get(self.status, []):
+            raise ValueError(f"Transición inválida de {self.status} a {new_status}")
+        
+        self.status = new_status
+        
+        if new_status == OrderStatus.COMPLETED:
+            self.delivery_date = datetime.now()
+
+    def calculate_cost(self, distance: float, energy_cost: float):
+        """Calcula el costo total basado en distancia y energía"""
+        # Fórmula de ejemplo: costo base + (distancia * factor) + (energía * costo_energía)
+        base_cost = 10.0
+        distance_factor = 0.5
+        energy_rate = 0.3
+        
+        self.total_cost = base_cost + (distance * distance_factor) + (self.energy_required * energy_rate)
+        return self.total_cost
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'Order':
-        """Crea un objeto Order desde un diccionario."""
+    def create_new(cls, client_id: str, origin: str, destination: str, priority: int = 1):
+        """Factory method para crear nuevas órdenes"""
         return cls(
-            id=data.get("id"),
-            client_id=data.get("client_id"),
-            origin_id=data.get("origin_id"),
-            destination_id=data.get("destination_id"),
-            created_at=datetime.fromisoformat(data.get("created_at")) if data.get("created_at") else datetime.now(),
-            status=OrderStatus(data.get("status", "pending")),
-            priority=data.get("priority", 1),
-            route=data.get("route"),
-            energy_cost=data.get("energy_cost"),
-            completed_at=datetime.fromisoformat(data.get("completed_at")) if data.get("completed_at") else None
+            id=str(uuid4()),
+            client_id=client_id,
+            origin=origin,
+            destination=destination,
+            priority=priority
         )

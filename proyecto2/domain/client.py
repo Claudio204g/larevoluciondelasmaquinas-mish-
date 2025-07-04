@@ -1,41 +1,37 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import List
+from uuid import uuid4
 
 @dataclass
 class Client:
-    """
-    Representa un cliente que recibe entregas de drones.
-    """
+    """Clase que representa un cliente en el sistema logístico"""
     id: str
     name: str
+    location: str  # Coordenadas o dirección
     client_type: str  # "regular", "priority", etc.
-    coordinates: tuple[float, float]  # (lat, lng)
     total_orders: int = 0
-    contact_phone: Optional[str] = None
+    current_orders: List[str] = None  # IDs de órdenes activas
 
-    def increment_orders(self):
-        """Incrementa el contador de pedidos del cliente."""
+    def __post_init__(self):
+        if self.current_orders is None:
+            self.current_orders = []
+
+    def add_order(self, order_id: str):
+        """Registra una nueva orden para este cliente"""
+        self.current_orders.append(order_id)
         self.total_orders += 1
 
-    def to_dict(self) -> dict:
-        """Convierte el objeto Client a un diccionario para serialización."""
-        return {
-            "id": self.id,
-            "name": self.name,
-            "type": self.client_type,
-            "coordinates": self.coordinates,
-            "total_orders": self.total_orders,
-            "contact_phone": self.contact_phone
-        }
+    def complete_order(self, order_id: str):
+        """Marca una orden como completada"""
+        if order_id in self.current_orders:
+            self.current_orders.remove(order_id)
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'Client':
-        """Crea un objeto Client desde un diccionario."""
+    def create_new(cls, name: str, location: str, client_type: str):
+        """Factory method para crear nuevos clientes"""
         return cls(
-            id=data.get("id"),
-            name=data.get("name"),
-            client_type=data.get("type"),
-            coordinates=data.get("coordinates"),
-            total_orders=data.get("total_orders", 0),
-            contact_phone=data.get("contact_phone")
+            id=str(uuid4()),
+            name=name,
+            location=location,
+            client_type=client_type
         )
